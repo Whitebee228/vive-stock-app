@@ -13,7 +13,7 @@ st.title("📈 바이브 주식분석 어플")
 if st.button("🔄 전체 실시간 새로고침", type="primary"):
     st.rerun()
 
-# ====================== 기본 함수 ======================
+# ====================== KRX 리스트 ======================
 @st.cache_data(ttl=3600)
 def get_krx_full_list():
     try:
@@ -41,7 +41,7 @@ with tab1:
     if st.button("분석 시작"):
         st.info("현물 프로 기법 분석이 실행됩니다.")
 
-# ====================== Tab 2: 포트폴리오 + KRW 통합 (오류 수정됨) ======================
+# ====================== Tab 2: 포트폴리오 + KRW 통합 (오류 수정 버전) ======================
 with tab2:
     st.header("💼 포트폴리오 관리 + KRW 통합")
 
@@ -67,22 +67,27 @@ with tab2:
     if not st.session_state.portfolio.empty:
         st.subheader("🇰🇷🇺🇸 KRW 통합 포트폴리오")
 
-        usd_krw = 1380.0  # fallback
+        # 환율 가져오기
+        usd_krw = 1380.0
         try:
             usd_krw = yf.Ticker("USDKRW=X").history(period="1d")['Close'].iloc[-1]
         except:
             pass
 
         data = []
-        total_krw = 0
+        total_krw = 0.0
 
         for _, row in st.session_state.portfolio.iterrows():
             try:
-                price = yf.Ticker(row['티커']).fast_info.get('lastPrice')
-                is_kr = row['티커'].endswith('.KS')
-                value_krw = price * row['보유주수'] * (usd_krw if not is_kr else 1)
-                total_krw += value_krw
+                ticker_obj = yf.Ticker(row['티커'])
+                price = ticker_obj.fast_info.get('lastPrice')
+                if price is None:
+                    price = row['매입가(원/달러)']
                 
+                is_kr = row['티커'].endswith('.KS')
+                value_krw = float(price) * int(row['보유주수']) * (usd_krw if not is_kr else 1)
+                total_krw += value_krw
+
                 data.append({
                     "티커": row['티커'],
                     "보유주수": row['보유주수'],
@@ -90,7 +95,7 @@ with tab2:
                     "평가액(KRW)": round(value_krw, 0),
                     "국가": "한국" if is_kr else "미국"
                 })
-            except:
+            except Exception as e:
                 data.append({
                     "티커": row['티커'],
                     "보유주수": row['보유주수'],
